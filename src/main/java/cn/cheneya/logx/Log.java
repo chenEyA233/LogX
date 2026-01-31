@@ -11,7 +11,7 @@ public class Log {
             DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
 
     private enum Level {
-        INFO, ERROR, WARN
+        INFO, ERROR, WARN, DEBUG
     }
 
     public void info(String msg) {
@@ -28,6 +28,10 @@ public class Log {
 
     public void warnNoNewline(String msg) {
         log(Level.WARN, msg, false);
+    }
+
+    public void debug(String msg) {
+        log(Level.DEBUG, msg, true);
     }
 
     private void log(Level level, String msg, boolean newline) {
