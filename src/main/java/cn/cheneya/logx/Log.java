@@ -52,7 +52,7 @@ public class Log {
     private void log(Level level, String msg, boolean newline) {
 
         String timestamp = "[" + LocalDateTime.now().format(FORMATTER) + "]";
-        String className = getClassName();
+        String className = getCallerClassName();
         String logMessage = String.format("%s [%s/%s] %s",
                 timestamp, className, level, msg);
 
@@ -63,8 +63,12 @@ public class Log {
         }
     }
 
-    public static String getClassName() {
-        return STACK_WALKER.getCallerClass().getName();
+    private String getCallerClassName() {
+        return STACK_WALKER.walk(frames -> frames
+                .skip(3)
+                .findFirst()
+                .map(StackWalker.StackFrame::getClassName)
+                .orElse("Unknown"));
     }
 
     static {
