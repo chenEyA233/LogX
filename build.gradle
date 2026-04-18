@@ -29,6 +29,14 @@ test {
     useJUnitPlatform()
 }
 
+javadoc {
+    failOnError = false
+    options.charSet = 'UTF-8'
+    options.encoding = 'UTF-8'
+    options.author = true
+    options.version = true
+}
+
 java {
     withSourcesJar()
     withJavadocJar()

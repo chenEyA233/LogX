@@ -91,7 +91,7 @@ public class Log {
 
     /**
      * Enum representing the available log severity levels.
-     * Levels are ordered by severity: DEBUG < INFO < WARN < ERROR
+     * Levels are ordered by severity: DEBUG &lt; INFO &lt; WARN &lt; ERROR
      */
     public enum Level {
         /** Debug level for detailed diagnostic information */
