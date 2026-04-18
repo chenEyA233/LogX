@@ -11,6 +11,14 @@ import cn.cheneya.logx.Version;
 public class Main {
 
     /**
+     * Private constructor to prevent instantiation.
+     * This class contains only static methods.
+     */
+    private Main() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Returns the version of the application.
      *
      * @return the version string from Version class

@@ -10,6 +10,14 @@ import cn.cheneya.logx.Log;
 public class DebugTest {
 
     /**
+     * Private constructor to prevent instantiation.
+     * This class contains only static methods.
+     */
+    private DebugTest() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Main method to test debug logging functionality.
      *
      * @param args command line arguments
