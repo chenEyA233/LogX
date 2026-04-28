@@ -21,7 +21,6 @@ import java.time.format.DateTimeFormatter;
  * }</pre>
  *
  * @author ChenEya
- * @version 2026.4.0
  */
 public class Log {
 
@@ -146,7 +145,7 @@ public class Log {
 
     /**
      * Initializes the logger and clears any existing log files.
-     * This method should only be called once during application startup.
+     * Automatically enables file saving with default settings.
      *
      * <p>Note: Calling this method multiple times is safe but will clear
      * the log file each time.
@@ -155,6 +154,8 @@ public class Log {
         if (!isInitialized) {
             this.saveLog = SaveLog.getInstance();
             SaveLog.getInstance().clearLogFile();
+            // Enable automatic file saving with default settings
+            this.saveToFile = true;
             isInitialized = true;
         }
     }
@@ -255,7 +256,7 @@ public class Log {
      * </ul>
      *
      * <p>Example output:
-     * <pre>[12:00:00.000] [cn.example.Main/INFO] LogX v2026.4.0 - Author: chenEyA - GitHub: https://github.com/chenEyA233</pre>
+     * <pre>[12:00:00.000] [cn.example.Main/INFO] LogX v2026.4.0 - Author: chenEyA - GitHub: <a href="https://github.com/chenEyA233">https://github.com/chenEyA233</a> - Bilibili: <a href="https://space.bilibili.com/3546694612420731">https://space.bilibili.com/3546694612420731</a></pre>
      *
      * @param level the log level at which to display the information
      */

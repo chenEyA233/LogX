@@ -29,16 +29,33 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *   <li>Write logs directly to a file in real-time</li>
  *   <li>Batch flush buffered logs to a specified file</li>
  *   <li>Clear and reset log files</li>
+ *   <li>Filter logs by level (with or without DEBUG)</li>
+ *   <li>Timestamped log file naming</li>
  * </ul>
  *
  * <p>This class implements a singleton pattern to ensure consistent
  * file access across the application.
  *
- * @author ChenEya
- * @version 2026.4.0
+ * @author chenEyA
  */
 @Getter
 public class SaveLog {
+
+    /**
+     * Enum defining the log file naming mode.
+     */
+    public enum Mode {
+        /**
+         * Normal mode: uses the specified file name directly.
+         */
+        NORMAL,
+
+        /**
+         * Timestamp mode: appends timestamp to file name.
+         * Format: filename-YYYY:MM:DD:HH:mm:ss.SSS.log
+         */
+        WITH_TIME
+    }
 
     /**
      * Singleton instance using eager initialization for thread safety.
@@ -50,6 +67,12 @@ public class SaveLog {
      */
     private static final DateTimeFormatter TIMESTAMP_FORMATTER =
             DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+
+    /**
+     * DateTimeFormatter for generating file timestamp format (yyyy.MM.dd-HH-mm-ss.SSS).
+     */
+    private static final DateTimeFormatter FILE_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy.MM.dd-HH-mm-ss.SSS");
 
     /**
      * Default log file name for real-time logging.
@@ -70,6 +93,24 @@ public class SaveLog {
     private volatile boolean isBuffering = false;
 
     /**
+     * Current save mode for log file naming.
+     * Default is WITH_TIME mode.
+     */
+    private volatile Mode saveMode = Mode.WITH_TIME;
+
+    /**
+     * Base file name for timestamp mode.
+     * Stores the original file name before timestamp is appended.
+     */
+    private String baseFileName = "log";
+
+    /**
+     * Current log file path.
+     * Used in WITH_TIME mode to write all logs to the same file.
+     */
+    private String currentLogFilePath = DEFAULT_LOG_FILE;
+
+    /**
      * Private constructor to enforce singleton pattern.
      */
     private SaveLog() {
@@ -83,6 +124,19 @@ public class SaveLog {
      */
     public static SaveLog getInstance() {
         return INSTANCE;
+    }
+
+    /**
+     * Sets the log file save mode.
+     *
+     * <p>In NORMAL mode, logs are saved to the specified file name.
+     * In WITH_TIME mode, the timestamp is appended to the file name:
+     * filename-YYYY:MM:DD:HH:mm:ss.SSS.log
+     *
+     * @param mode the save mode to set
+     */
+    public void setSaveLogFileMode(Mode mode) {
+        this.saveMode = mode;
     }
 
     /**
@@ -140,14 +194,19 @@ public class SaveLog {
     }
 
     /**
-     * Writes a single log entry to the default log file.
+     * Writes a single log entry to the current log file.
      * Creates the file if it doesn't exist and appends to existing content.
      *
      * @param logEntry the formatted log entry to write
      */
     private void writeToFile(String logEntry) {
         try {
-            Path logPath = Paths.get(DEFAULT_LOG_FILE);
+            // Ensure file path is initialized for WITH_TIME mode
+            if (saveMode == Mode.WITH_TIME && currentLogFilePath.equals(DEFAULT_LOG_FILE)) {
+                currentLogFilePath = resolveTargetFileName();
+            }
+
+            Path logPath = Paths.get(currentLogFilePath);
             String line = logEntry + System.lineSeparator();
             Files.writeString(logPath, line, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -157,7 +216,39 @@ public class SaveLog {
     }
 
     /**
+     * Resolves the target file name based on the current save mode.
+     *
+     * @return the resolved file name with timestamp if in WITH_TIME mode
+     */
+    private String resolveTargetFileName() {
+        if (saveMode == Mode.WITH_TIME) {
+            String timestamp = LocalDateTime.now().format(FILE_TIMESTAMP_FORMATTER);
+            return baseFileName + "-" + timestamp + ".log";
+        }
+        return baseFileName + ".log";
+    }
+
+    /**
      * Saves all buffered logs to the specified file.
+     * Only saves logs with level INFO, WARN, or ERROR (excludes DEBUG).
+     *
+     * <p>This method performs the following operations:
+     * <ol>
+     *   <li>Creates parent directories if they don't exist</li>
+     *   <li>Creates the file if it doesn't exist</li>
+     *   <li>Appends filtered buffered logs (INFO/WARN/ERROR) to the file</li>
+     *   <li>Clears the buffer after successful write</li>
+     * </ol>
+     *
+     * @param file the destination file for the buffered logs
+     */
+    public void saveLog(File file) {
+        saveLogWithFilter(file, true);
+    }
+
+    /**
+     * Saves all buffered logs to the specified file.
+     * Includes all log levels (INFO, WARN, ERROR, and DEBUG).
      *
      * <p>This method performs the following operations:
      * <ol>
@@ -169,18 +260,32 @@ public class SaveLog {
      *
      * @param file the destination file for the buffered logs
      */
-    public void saveLog(File file) {
+    public void saveLogWithDebug(File file) {
+        saveLogWithFilter(file, false);
+    }
+
+    /**
+     * Internal method to save logs with optional DEBUG filtering.
+     *
+     * @param file      the destination file
+     * @param skipDebug true to skip DEBUG logs, false to include all
+     */
+    private void saveLogWithFilter(File file, boolean skipDebug) {
         if (logBuffer.isEmpty()) {
             return;
         }
 
         try {
-            ensureFileExists(file);
+            File targetFile = resolveTargetFile(file);
+            ensureFileExists(targetFile);
 
             try (BufferedWriter writer = new BufferedWriter(
-                    new OutputStreamWriter(new FileOutputStream(file, true), StandardCharsets.UTF_8))) {
+                    new OutputStreamWriter(new FileOutputStream(targetFile, true), StandardCharsets.UTF_8))) {
 
                 for (String logEntry : logBuffer) {
+                    if (skipDebug && containsDebug(logEntry)) {
+                        continue;
+                    }
                     writer.write(logEntry);
                     writer.newLine();
                 }
@@ -190,6 +295,76 @@ public class SaveLog {
             }
         } catch (IOException e) {
             System.err.println("Failed to save logs to file: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Checks if a log entry contains DEBUG level.
+     *
+     * @param logEntry the log entry to check
+     * @return true if the entry contains DEBUG, false otherwise
+     */
+    private boolean containsDebug(String logEntry) {
+        return logEntry.contains("/DEBUG]");
+    }
+
+    /**
+     * Resolves the target file based on the current save mode.
+     *
+     * @param file the original file
+     * @return the resolved file with timestamp if in WITH_TIME mode
+     */
+    private File resolveTargetFile(File file) {
+        if (saveMode == Mode.WITH_TIME) {
+            String timestamp = LocalDateTime.now().format(FILE_TIMESTAMP_FORMATTER);
+            String fileName = file.getName();
+            int dotIndex = fileName.lastIndexOf('.');
+            if (dotIndex > 0) {
+                String name = fileName.substring(0, dotIndex);
+                String ext = fileName.substring(dotIndex);
+                return new File(file.getParentFile(), name + "-" + timestamp + ext);
+            } else {
+                return new File(file.getParentFile(), fileName + "-" + timestamp);
+            }
+        }
+        return file;
+    }
+
+    /**
+     * Saves a single line of log to the default log file.
+     * This method writes directly to file without buffering.
+     *
+     * <p>The line is written with a timestamp prefix: [timestamp] message
+     *
+     * @param log the log message to write
+     */
+    public void saveLogWithOneLine(String log) {
+        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
+        String logEntry = String.format("[%s] %s", timestamp, log);
+
+        try {
+            Path logPath = Paths.get(DEFAULT_LOG_FILE);
+            String line = logEntry + System.lineSeparator();
+            Files.writeString(logPath, line, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            System.err.println("Failed to write log: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Clears/empties the specified log file.
+     * If the file exists, its contents will be deleted.
+     *
+     * @param file the log file to clean
+     */
+    public void cleanLogFile(File file) {
+        try {
+            if (file.exists()) {
+                Files.delete(file.toPath());
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to clean log file: " + e.getMessage());
         }
     }
 
@@ -209,14 +384,15 @@ public class SaveLog {
                 return;
             }
 
-            ensureFileExists(file);
+            File targetFile = resolveTargetFile(file);
+            ensureFileExists(targetFile);
 
             // Read all lines from source file
             List<String> lines = Files.readAllLines(sourceFile.toPath(), StandardCharsets.UTF_8);
 
             // Write to destination file
             try (BufferedWriter writer = new BufferedWriter(
-                    new OutputStreamWriter(new FileOutputStream(file, true), StandardCharsets.UTF_8))) {
+                    new OutputStreamWriter(new FileOutputStream(targetFile, true), StandardCharsets.UTF_8))) {
 
                 for (String line : lines) {
                     writer.write(line);

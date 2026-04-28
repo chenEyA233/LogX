@@ -6,20 +6,12 @@ package cn.cheneya.logx;
  * <p>This class provides a centralized location for version tracking,
  * following semantic versioning principles (Year.Major.Minor).
  *
- * @author ChenEya
- * @version 2026.4.0
+ * @author chenEyA
  */
 public final class Version {
 
     /**
      * The current version of the LogX library.
-     * Format: YYYY.Major.Minor
-     *
-     * <ul>
-     *   <li>YYYY: Release year</li>
-     *   <li>Major: Major version number (breaking changes)</li>
-     *   <li>Minor: Minor version number (backward compatible features)</li>
-     * </ul>
      */
     public static final String VERSION = "2026.5.0";
 
